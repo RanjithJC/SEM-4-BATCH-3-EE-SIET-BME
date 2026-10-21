@@ -1,0 +1,72 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// ================== DS18B20 ==================
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+// ================== BTS7960 ==================
+#define RPWM 25
+#define LPWM 26
+
+// ================== SETTINGS ==================
+float setTemp = 40.0;   // Default target temp
+
+void setup() {
+  Serial.begin(115200);
+  sensors.begin();
+
+  // New ESP32 PWM (v3+)
+  ledcAttach(RPWM, 1000, 8);
+  ledcAttach(LPWM, 1000, 8);
+
+  Serial.println("=== Thermal Control System Ready ===");
+  Serial.println("Enter temperature (35–45°C):");
+}
+
+void loop() {
+
+  // Read temperature
+  sensors.requestTemperatures();
+  float currentTemp = sensors.getTempCByIndex(0);
+
+  // Serial input for setting temperature
+  if (Serial.available()) {
+    float input = Serial.parseFloat();
+
+    if (input >= 40 && input <= 45) {
+      setTemp = input;
+      Serial.print("New Target Temp: ");
+      Serial.println(setTemp);
+    } else {
+      Serial.println("Enter value between 40 and 45");
+    }
+  }
+
+  // ================== CONTROL LOGIC ==================
+
+  if (currentTemp < setTemp - 0.5) {
+    // 🔥 HEATING
+    ledcWrite(RPWM, 200);
+    ledcWrite(LPWM, 0);
+  }
+  else if (currentTemp > setTemp + 0.5) {
+    // ❄️ COOLING
+    ledcWrite(RPWM, 0);
+    ledcWrite(LPWM, 200);
+  }
+  else {
+    // ⏸️ STABLE
+    ledcWrite(RPWM, 0);
+    ledcWrite(LPWM, 0);
+  }
+
+  // ================== DEBUG ==================
+  Serial.print("Current: ");
+  Serial.print(currentTemp);
+  Serial.print(" °C | Target: ");
+  Serial.println(setTemp);
+
+  delay(1000);
+}
